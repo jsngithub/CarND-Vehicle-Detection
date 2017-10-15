@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 import glob
 import time
+import pickle
 from sklearn.svm import LinearSVC
 from sklearn.preprocessing import StandardScaler
 from skimage.feature import hog
@@ -73,18 +74,16 @@ def extract_features(imgs, cspace='RGB', orient=9,
 cars = glob.glob('./vehicles/*/*.png')
 notcars = glob.glob('./non-vehicles/*/*.png')
 
-# Temporarily reduce the sample size because HOG features are slow to compute
-sample_size = 1000
-cars = cars[0:sample_size]
-notcars = notcars[0:sample_size]
+## Temporarily reduce the sample size because HOG features are slow to compute
+#sample_size = 1000
+#cars = cars[0:sample_size]
+#notcars = notcars[0:sample_size]
 
-
-### TODO: Tweak these parameters and see how the results change.
-colorspace = 'RGB' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
+colorspace = 'YCrCb' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
 orient = 9
 pix_per_cell = 8
 cell_per_block = 2
-hog_channel = 0 # Can be 0, 1, 2, or "ALL"
+hog_channel = "ALL" # Can be 0, 1, 2, or "ALL"
 
 t=time.time()
 car_features = extract_features(cars, cspace=colorspace, orient=orient, 
@@ -131,9 +130,17 @@ print('For these',n_predict, 'labels: ', y_test[0:n_predict])
 t2 = time.time()
 print(round(t2-t, 5), 'Seconds to predict', n_predict,'labels with SVC')
 
+#pickle results
 
-
-
+params = {}
+params['svc'] = svc
+params['scaler'] = X_scaler
+params['orient'] = orient
+params['pix_per_cell'] = pix_per_cell
+params['cell_per_block'] = cell_per_block
+params['spatial_size'] = (32, 32)
+params['hist_bins'] = 32
+pickle.dump( params, open('svc_pickle.p', 'wb'))
 
 
 
