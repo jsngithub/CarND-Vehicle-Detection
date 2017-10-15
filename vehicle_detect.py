@@ -5,6 +5,7 @@ import pickle
 import cv2
 from lesson_functions import *
 from scipy.ndimage.measurements import label
+from moviepy.editor import VideoFileClip
 
 dist_pickle = pickle.load( open("svc_pickle.p", "rb" ) )
 svc = dist_pickle["svc"]
@@ -119,30 +120,61 @@ ystart = 400
 ystop = 656
 scale = 1.5
 
-img = mpimg.imread('./test_images/test4.jpg')    
-heat = np.zeros_like(img[:,:,0]).astype(np.float)
-out_img, box_list = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
-
-plt.imshow(out_img)
-
-# Add heat to each box in box list
-heat = add_heat(heat,box_list)
+def draw_boxes_on_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins):
+    heat = np.zeros_like(img[:,:,0]).astype(np.float)
+    out_img, box_list = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
     
-# Apply threshold to help remove false positives
-heat = apply_threshold(heat,1)
+    # Add heat to each box in box list
+    heat = add_heat(heat,box_list)
+        
+    # Apply threshold to help remove false positives
+    heat = apply_threshold(heat,1)
+    
+    # Visualize the heatmap when displaying    
+    heatmap = np.clip(heat, 0, 255)
+    
+    # Find final boxes from heatmap using label function
+    labels = label(heatmap)
+    draw_img = draw_labeled_bboxes(np.copy(img), labels)
+    return draw_img
 
-# Visualize the heatmap when displaying    
-heatmap = np.clip(heat, 0, 255)
+def video_process(img):
+    return draw_boxes_on_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+ 
+process_video = True
 
-# Find final boxes from heatmap using label function
-labels = label(heatmap)
-draw_img = draw_labeled_bboxes(np.copy(img), labels)
-
-fig = plt.figure()
-plt.subplot(121)
-plt.imshow(draw_img)
-plt.title('Car Positions')
-plt.subplot(122)
-plt.imshow(heatmap, cmap='hot')
-plt.title('Heat Map')
-fig.tight_layout()
+if (process_video):
+    video_in = VideoFileClip('project_video.mp4')
+    video_out = video_in.fl_image(video_process)
+    video_out.write_videofile('draw_project_video.mp4', audio=False)
+else:
+    img = mpimg.imread('./test_images/test4.jpg')
+    draw_img = draw_boxes_on_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+    plt.imshow(draw_img) 
+    
+    
+#heat = np.zeros_like(img[:,:,0]).astype(np.float)
+#out_img, box_list = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+#
+## Add heat to each box in box list
+#heat = add_heat(heat,box_list)
+#    
+## Apply threshold to help remove false positives
+#heat = apply_threshold(heat,1)
+#
+## Visualize the heatmap when displaying    
+#heatmap = np.clip(heat, 0, 255)
+#
+## Find final boxes from heatmap using label function
+#labels = label(heatmap)
+#draw_img = draw_labeled_bboxes(np.copy(img), labels)
+#
+#plt.imshow(out_img)
+#fig = plt.figure()
+#plt.subplot(121)
+#plt.imshow(draw_img)
+#plt.title('Car Positions')
+#plt.subplot(122)
+#plt.imshow(heatmap, cmap='hot')
+#plt.title('Heat Map')
+#fig.tight_layout()
