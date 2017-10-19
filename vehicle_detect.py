@@ -3,23 +3,31 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 import cv2
+import glob
 from lesson_functions import *
 from scipy.ndimage.measurements import label
 from moviepy.editor import VideoFileClip
 
+# load pickled data
 dist_pickle = pickle.load( open("svc_pickle.p", "rb" ) )
-svc = dist_pickle["svc"]
-X_scaler = dist_pickle["scaler"]
+color_space = dist_pickle['color_space']
 orient = dist_pickle["orient"]
 pix_per_cell = dist_pickle["pix_per_cell"]
 cell_per_block = dist_pickle["cell_per_block"]
+hog_channel = dist_pickle['hog_channel']
 spatial_size = dist_pickle["spatial_size"]
 hist_bins = dist_pickle["hist_bins"]
+spatial_feat = dist_pickle['spatial_feat']
+hist_feat = dist_pickle['hist_feat']
+hog_feat = dist_pickle['hog_feat']
+svc = dist_pickle["svc"]
+X_scaler = dist_pickle["scaler"]
+
 
 # Define a single function that can extract features using hog sub-sampling and make predictions
-def find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins):
+def find_cars(img, draw_img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins):
     
-    draw_img = np.copy(img)
+    #draw_img = np.copy(img)
     img = img.astype(np.float32)/255
     
     img_tosearch = img[ystart:ystop,:,:]
@@ -71,9 +79,9 @@ def find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, ce
             hist_features = color_hist(subimg, nbins=hist_bins)
 
             # Scale features and make a prediction
-            #test_features = X_scaler.transform(np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1))    
+            test_features = X_scaler.transform(np.hstack((spatial_features, hist_features, hog_features)).reshape(1, -1))    
             #test_features = X_scaler.transform(np.hstack((shape_feat, hist_feat)).reshape(1, -1))    
-            test_features = X_scaler.transform(hog_features)    
+            #test_features = X_scaler.transform(hog_features)    
             test_prediction = svc.predict(test_features)
             
             if test_prediction == 1:
@@ -118,63 +126,103 @@ def draw_labeled_bboxes(img, labels):
 
 ystart = 400
 ystop = 656
-scale = 1.5
 
-def draw_boxes_on_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins):
+def draw_boxes_on_cars(img, ystart, ystop, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins, debug=False):
     heat = np.zeros_like(img[:,:,0]).astype(np.float)
-    out_img, box_list = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+    box_lists = []
+    scales = (0.75, 1, 1.25, 1.5, 1.75, 2, 2.25)
+    out_img = np.copy(img)
+      
+    for scale in scales:
+        out_img, box_list = find_cars(img, out_img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+        if (len(box_list)>0): box_lists.append(box_list)
     
-    # Add heat to each box in box list
-    heat = add_heat(heat,box_list)
+    if (len(box_lists) > 0):
+        box_lists = np.concatenate(box_lists)
         
-    # Apply threshold to help remove false positives
-    heat = apply_threshold(heat,1)
-    
-    # Visualize the heatmap when displaying    
-    heatmap = np.clip(heat, 0, 255)
-    
-    # Find final boxes from heatmap using label function
-    labels = label(heatmap)
-    draw_img = draw_labeled_bboxes(np.copy(img), labels)
-    return draw_img
-
+        # Add heat to each box in box list
+        heat = add_heat(heat,box_lists)
+            
+        # Apply threshold to help remove false positives
+        heat = apply_threshold(heat,5)
+        
+        # Visualize the heatmap when displaying    
+        heatmap = np.clip(heat, 0, 255)
+        
+        # Find final boxes from heatmap using label function
+        labels = label(heatmap)
+        draw_img = draw_labeled_bboxes(np.copy(img), labels)
+        if (debug):
+            return draw_img, heatmap, out_img, labels
+        else:
+            return draw_img
+    else:
+        draw_img = np.copy(img)
+        labels = (np.zeros_like(heat), 0)
+        if (debug):
+            return draw_img, heat, out_img, labels
+        else:
+            return draw_img
+        
 def video_process(img):
-    return draw_boxes_on_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
+    return draw_boxes_on_cars(img, ystart, ystop, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
  
-process_video = True
+process_video = False
 
 if (process_video):
+    #video_in = VideoFileClip('test_video.mp4')
     video_in = VideoFileClip('project_video.mp4')
     video_out = video_in.fl_image(video_process)
-    video_out.write_videofile('draw_project_video.mp4', audio=False)
+    video_out.write_videofile('output_video.mp4', audio=False)
 else:
-    img = mpimg.imread('./test_images/test4.jpg')
-    draw_img = draw_boxes_on_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
-    plt.imshow(draw_img) 
+    counter = 1
+    images = glob.glob('./test_images/*.jpg')
+    for file in images:
+        img = mpimg.imread(file)
+        draw_img, heatmap, out_img, labels = draw_boxes_on_cars(img, ystart, ystop, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins, debug=True)
+        fig = plt.figure(figsize=(15,10))
+        plt.subplot(141)
+        plt.imshow(out_img)
+        plt.title('Detections')
+        plt.subplot(142)
+        plt.imshow(heatmap, cmap='hot')
+        plt.title('Heat Map')
+        plt.subplot(143)
+        plt.imshow(labels[0], cmap='gray')
+        plt.title('Labels')
+        plt.subplot(144)
+        plt.imshow(draw_img)
+        plt.title('Car Positions')
+        fig.tight_layout()
+        img = mpimg.imsave('./examples/pipeline_example{:d}.jpg'.format(counter), out_img)
+        img = mpimg.imsave('./examples/heatmap{:d}.jpg'.format(counter), heatmap, cmap='hot')
+        img = mpimg.imsave('./examples/labels{:d}.jpg'.format(counter), labels[0], cmap='gray')
+        img = mpimg.imsave('./examples/boxes{:d}.jpg'.format(counter), draw_img)
+        counter += 1
     
-    
-#heat = np.zeros_like(img[:,:,0]).astype(np.float)
-#out_img, box_list = find_cars(img, ystart, ystop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block, spatial_size, hist_bins)
-#
-## Add heat to each box in box list
-#heat = add_heat(heat,box_list)
-#    
-## Apply threshold to help remove false positives
-#heat = apply_threshold(heat,1)
-#
-## Visualize the heatmap when displaying    
-#heatmap = np.clip(heat, 0, 255)
-#
-## Find final boxes from heatmap using label function
-#labels = label(heatmap)
-#draw_img = draw_labeled_bboxes(np.copy(img), labels)
-#
-#plt.imshow(out_img)
-#fig = plt.figure()
-#plt.subplot(121)
-#plt.imshow(draw_img)
-#plt.title('Car Positions')
-#plt.subplot(122)
-#plt.imshow(heatmap, cmap='hot')
-#plt.title('Heat Map')
-#fig.tight_layout()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
