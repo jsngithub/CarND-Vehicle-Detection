@@ -133,7 +133,7 @@ Here's an example result showing the heatmap from a series of frames of video, t
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Depending on the overlap of the window search, I noticed that a big car (lower part of the image) sometimes gets several small boxes drawn on it instead of one large box.  Also, when two cars get close to each other they get identified as a single large car.
+Depending on the overlap of the window search, I noticed that a big car (lower part of the image) sometimes gets several small boxes drawn on it instead of one large box.  Also, when two cars get close to each other they get identified as a single large car.  It also finds cars on the other side of the highway divider, which may or may not be desired.
 
 If I were to pursue this project further, I would use information from previous several frames to make the detection more robust, as was done in advanced lane find.  Once a car is detected I can give heavier weight to that region in the heat detection phase, making it more likely that the car will be detected in a future frame.
 
